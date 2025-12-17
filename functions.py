@@ -1,18 +1,46 @@
 from config import SYSTEM_PROMPT
-import google.generativeai as genai
 import os
 import re
 import html
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if not GOOGLE_API_KEY:
-    raise ValueError("GOOGLE_API_KEY не найден в .env файле")
+# ==================== НАСТРОЙКИ ====================
 
-genai.configure(api_key=GOOGLE_API_KEY)
+DEFAULT_MODEL = "gemini-pro"  # единственная стабильная модель для google.generativeai
+_model = None
 
-# ✅ ПРАВИЛЬНОЕ имя модели для v1beta
-model = genai.GenerativeModel("models/gemini-1.5-pro-001")
 
+# ==================== ВНУТРЕННЯЯ ИНИЦИАЛИЗАЦИЯ ====================
+
+def _get_model():
+    """
+    Лениво инициализирует Gemini-модель.
+    Импорт и создание модели происходят ТОЛЬКО при первом запросе.
+    """
+    global _model
+
+    if _model is not None:
+        return _model
+
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    if not GOOGLE_API_KEY:
+        raise ValueError("GOOGLE_API_KEY не найден в .env файле")
+
+    # тяжёлый импорт — ТОЛЬКО здесь
+    import google.generativeai as genai
+
+    genai.configure(api_key=GOOGLE_API_KEY)
+
+    model_name = os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
+
+    _model = genai.GenerativeModel(
+        model_name,
+        generation_config={
+            "temperature": 0.7,
+            "max_output_tokens": 1024,
+        }
+    )
+
+    return _model
 
 def md_to_html(md: str) -> str:
     md = html.escape(md)
