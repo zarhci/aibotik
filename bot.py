@@ -120,35 +120,38 @@ def handle_message(message):
         bot.reply_to(message, "⚠️ Максимум 4000 символов.")
         return
 
-    # дневной сброс
+    # 🔄 дневной сброс
     db_manager.reset_daily_requests_if_needed(message.chat.id)
 
-    # проверка лимита
-    requests_left = db_manager.get_user_requests(message.chat.id)
-    if requests_left <= 0:
+    # ❗ СРАЗУ пытаемся списать запрос
+    if not db_manager.use_request(message.chat.id):
         bot.send_message(
             message.chat.id,
             "❌ Дневной лимит исчерпан.\nПопробуйте снова завтра."
         )
         return
 
+    # ✅ запрос успешно списан — идём в AI
     bot.send_chat_action(message.chat.id, "typing")
 
     try:
         response_text, _, _ = get_ai_response(message.text)
 
-        if db_manager.use_request(message.chat.id):
-            db_manager.add_result(
-                message.chat.id,
-                message.text,
-                response_text
-            )
+        db_manager.add_result(
+            message.chat.id,
+            message.text,
+            response_text
+        )
 
-            bot.reply_to(message, response_text, parse_mode="HTML")
+        bot.reply_to(message, response_text, parse_mode="HTML")
 
     except Exception as e:
-        print("❌ Ошибка:", e)
+        # 🔄 если AI упал — возвращаем запрос
+        db_manager.add_request_back(message.chat.id)
+        print("❌ AI error:", e)
         bot.reply_to(message, "❌ Произошла ошибка. Попробуйте позже.")
+
+
 
 # ==================== НЕ-ТЕКСТ ====================
 

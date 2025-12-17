@@ -5,30 +5,28 @@ import html
 
 # ==================== НАСТРОЙКИ ====================
 
-DEFAULT_MODEL = "gemini-pro"  # единственная стабильная модель для google.generativeai
+DEFAULT_MODEL = "gemini-pro"
 _model = None
 
 
-# ==================== ВНУТРЕННЯЯ ИНИЦИАЛИЗАЦИЯ ====================
+# ==================== MODEL INIT ====================
 
 def _get_model():
     """
-    Лениво инициализирует Gemini-модель.
-    Импорт и создание модели происходят ТОЛЬКО при первом запросе.
+    Лениво создаёт модель Gemini.
     """
     global _model
 
     if _model is not None:
         return _model
 
-    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-    if not GOOGLE_API_KEY:
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
         raise ValueError("GOOGLE_API_KEY не найден в .env файле")
 
-    # тяжёлый импорт — ТОЛЬКО здесь
     import google.generativeai as genai
 
-    genai.configure(api_key=GOOGLE_API_KEY)
+    genai.configure(api_key=api_key)
 
     model_name = os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
 
@@ -41,6 +39,9 @@ def _get_model():
     )
 
     return _model
+
+
+# ==================== MARKDOWN → HTML ====================
 
 def md_to_html(md: str) -> str:
     md = html.escape(md)
@@ -57,16 +58,22 @@ def md_to_html(md: str) -> str:
     return md
 
 
+# ==================== MAIN FUNCTION ====================
+
 def get_ai_response(message: str):
     try:
-        # system prompt передаём ЯВНО
-        response = model.generate_content(
-            f"{SYSTEM_PROMPT}\n\nПользователь:\n{message}"
+        model = _get_model()  # 🔑 КЛЮЧЕВАЯ СТРОКА
+
+        prompt = (
+            f"{SYSTEM_PROMPT}\n\n"
+            f"Пользователь:\n{message}"
         )
 
+        response = model.generate_content(prompt)
         text = response.text or ""
+
         return md_to_html(text), 0, 0
 
     except Exception as e:
-        print("❌ ОШИБКА GPT:", e)
+        print("❌ ОШИБКА AI:", e)
         return f"Ошибка при обращении к AI: {e}", 0, 0
